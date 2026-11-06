@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photomosaic</title>
+<style>
+body{margin:0;background:#0f1115;color:#e6e8ec;font:14px/1.5 system-ui,sans-serif}
+.w{max-width:720px;margin:0 auto;padding:18px}
+.d{border:1.5px dashed #2c313c;border-radius:10px;padding:14px;text-align:center;font-size:11px;color:#8b93a3;cursor:pointer}
+.d:hover{border-color:#5b8cff}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.r{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+label{display:block;font-size:10px;color:#8b93a3;text-transform:uppercase}
+input[type=range]{width:100%;accent-color:#5b8cff}
+button{width:100%;padding:10px;font:700 13px system-ui;border:0;border-radius:8px;background:#5b8cff;color:#fff;cursor:pointer;margin-top:10px}
+#sv{background:#22c55e;display:none}
+#th{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:10px}
+#th img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:3px}
+#o img{width:100%;display:block;border-radius:10px;margin-top:10px}
+#s{font-size:11px;color:#8b93a3;min-height:14px;margin-top:8px}
+</style></head><body><div class="w">
+<div class="g">
+<div class="d" id="ds">SOURCE — the big picture<input type="file" id="fs" accept="image/*" hidden></div>
+<div class="d" id="dl">TILES — <span id="n">0</span> loaded<input type="file" id="fl" accept="image/*" multiple hidden></div>
+</div>
+<div id="th"></div>
+<div class="r">
+<div><label>Density <span id="vd">70</span></label><input type="range" id="dm" min="20" max="140" value="70"></div>
+<div><label>Ghost <span id="vg">18</span>%</label><input type="range" id="gm" min="0" max="70" value="18"></div>
+<div><label>Variety <span id="vv">30</span></label><input type="range" id="vm" min="0" max="120" value="30"></div>
+</div>
+<button id="go">Build mosaic</button>
+<button id="sv">Save PNG</button>
+<div id="s"></div><div id="o"></div>
+</div>
+<script>
+const $=i=>document.getElementById(i);
+let src=null,lib=[],last=null;
+$('dm').oninput=e=>$('vd').textContent=e.target.value;
+$('gm').oninput=e=>$('vg').textContent=e.target.value;
+$('vm').oninput=e=>$('vv').textContent=e.target.value;
+$('ds').onclick=()=>$('fs').click();
+$('dl').onclick=()=>$('fl').click();
+$('fs').onchange=e=>{const f=e.target.files[0];if(!f)return;
+const im=new Image();im.onload=()=>{src=im;$('ds').style.borderColor='#22c55e';$('s').textContent='Source loaded.'};
+im.src=URL.createObjectURL(f)};
+$('fl').onchange=e=>{[...e.target.files].filter(f=>f.type.startsWith('image/')).slice(0,400).forEach(f=>{
+const im=new Image();im.onload=()=>{
+const c=document.createElement('canvas');c.width=c.height=1;
+const x=c.getContext('2d');x.drawImage(im,0,0,1,1);
+const d=x.getImageData(0,0,1,1).data;
+lib.push({im,r:d[0],g:d[1],b:d[2]});
+$('n').textContent=lib.length;
+if(lib.length<24){const t=document.createElement('img');t.src=im.src;$('th').appendChild(t)}
+};im.src=URL.createObjectURL(f)});e.target.value=''};
+$('go').onclick=()=>{
+if(!src)return $('s').textContent='Load a source first.';
+if(lib.length<4)return $('s').textContent='Add at least 4 tiles.';
+const cols=+$('dm').value,rows=Math.max(1,Math.round(cols*src.height/src.width));
+const px=Math.max(6,Math.floor(2200/cols)),W=cols*px,H=rows*px;
+const bl=+$('gm').value/100,va=+$('vm').value;
+$('s').textContent='Building…';
+const sm=document.createElement('canvas');sm.width=cols;sm.height=rows;
+const sc=sm.getContext('2d',{willReadFrequently:true});
+sc.drawImage(src,0,0,cols,rows);
+const dt=sc.getImageData(0,0,cols,rows).data;
+const c=document.createElement('canvas');c.width=W;c.height=H;
+const x=c.getContext('2d');x.imageSmoothingQuality='high';
+for(let r=0;r<rows;r++)for(let q=0;q<cols;q++){
+const i=(r*cols+q)*4,tr=dt[i],tg=dt[i+1],tb=dt[i+2];
+let best=null,bs=1e9;
+for(let k=0;k<lib.length;k++){const t=lib[k],dr=t.r-tr,dg=t.g-tg,db=t.b-tb;
+let s=dr*dr*.3+dg*dg*.59+db*db*.11+Math.random()*va*900;
+if(s<bs){bs=s;best=t}}
+if(best)x.drawImage(best.im,q*px,r*px,px,px)}
+if(bl>0){x.globalAlpha=bl;x.drawImage(src,0,0,W,H);x.globalAlpha=1}
+last=c.toDataURL('image/png');
+$('o').innerHTML='<img src="'+last+'">';
+$('sv').style.display='block';
+$('s').textContent='Done.'};
+$('sv').onclick=()=>{const a=document.createElement('a');
+a.href=last;a.download='mosaic-'+Date.now()+'.png';a.click()};
+</script></body></html>
